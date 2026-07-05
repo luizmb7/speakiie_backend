@@ -13,13 +13,13 @@ COPY src ./src
 RUN npm run build
 
 # ── Production Stage ──
-FROM node:20-slim AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 
 # Instalar OpenSSL (necessário para o Prisma em produção)
-RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache openssl
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
