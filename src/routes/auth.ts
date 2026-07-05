@@ -36,7 +36,7 @@ const refreshSchema = z.object({
 export default async function authRoutes(fastify: FastifyInstance) {
   // ── POST /auth/guest ──
   // Cria conta guest com apenas um nickname (sem fricção)
-  fastify.post('/auth/guest', async (request, reply) => {
+  fastify.post('/guest', async (request, reply) => {
     const body = guestSchema.parse(request.body);
 
     const user = await fastify.prisma.user.create({
@@ -73,7 +73,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   // ── POST /auth/register ──
   // Upgrade de guest → conta completa, OU criação direta de conta
-  fastify.post('/auth/register', {
+  fastify.post('/register', {
     preHandler: [fastify.authenticateOptional],
   }, async (request, reply) => {
     const body = registerSchema.parse(request.body);
@@ -162,7 +162,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   // ── POST /auth/login ──
   // Login com email/senha
-  fastify.post('/auth/login', async (request, reply) => {
+  fastify.post('/login', async (request, reply) => {
     const body = loginSchema.parse(request.body);
 
     const user = await fastify.prisma.user.findUnique({
@@ -211,7 +211,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   // ── POST /auth/refresh ──
   // Renova o access token usando um refresh token válido
-  fastify.post('/auth/refresh', async (request, reply) => {
+  fastify.post('/refresh', async (request, reply) => {
     const body = refreshSchema.parse(request.body);
 
     let payload;
@@ -264,7 +264,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   // ── GET /auth/me ──
   // Retorna dados do usuário autenticado
-  fastify.get('/auth/me', {
+  fastify.get('/me', {
     preHandler: [fastify.authenticate],
   }, async (request, reply) => {
     const user = await fastify.prisma.user.findUnique({
