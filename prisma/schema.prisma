@@ -1,0 +1,172 @@
+// ─────────────────────────────────────────────────────
+// Speakiie — Prisma Schema (Modelo de Dados Completo)
+// ─────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Users ──────────────────────────────────────────────
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  nickname      String   @db.VarChar(32)
+  email         String?  @unique @db.VarChar(255)
+  passwordHash  String?  @map("password_hash") @db.VarChar(255)
+  isGuest       Boolean  @default(true) @map("is_guest")
+  avatarColor   String   @map("avatar_color") @db.VarChar(7)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+  lastSeenAt    DateTime @default(now()) @map("last_seen_at")
+
+  // Relations
+  ownedServers  Server[]       @relation("ServerOwner")
+  memberships   ServerMember[]
+  messages      Message[]
+  sessions      Session[]
+
+  @@index([isGuest, lastSeenAt], name: "idx_users_guest_cleanup")
+  @@map("users")
+}
+
+// ── Servers ────────────────────────────────────────────
+model Server {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(64)
+  description String?  @db.VarChar(256)
+  iconUrl     String?  @map("icon_url") @db.VarChar(512)
+  ownerId     String   @map("owner_id") @db.Uuid
+  inviteCode  String   @unique @map("invite_code") @db.VarChar(12)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  owner    User           @relation("ServerOwner", fields: [ownerId], references: [id])
+  members  ServerMember[]
+  channels Channel[]
+  roles    Role[]
+
+  @@map("servers")
+}
+
+// ── Server Members ─────────────────────────────────────
+model ServerMember {
+  id               String   @id @default(uuid()) @db.Uuid
+  serverId         String   @map("server_id") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  nicknameOverride String?  @map("nickname_override") @db.VarChar(32)
+  joinedAt         DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  server Server             @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  user   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roles  ServerMemberRole[]
+
+  @@unique([serverId, userId], name: "unique_server_user")
+  @@map("server_members")
+}
+
+// ── Server Member Roles (N:N junction) ─────────────────
+model ServerMemberRole {
+  memberId String @map("member_id") @db.Uuid
+  roleId   String @map("role_id") @db.Uuid
+
+  // Relations
+  member ServerMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role   Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([memberId, roleId])
+  @@map("server_member_roles")
+}
+
+// ── Channels ───────────────────────────────────────────
+enum ChannelType {
+  text
+  voice
+}
+
+model Channel {
+  id          String      @id @default(uuid()) @db.Uuid
+  serverId    String      @map("server_id") @db.Uuid
+  name        String      @db.VarChar(64)
+  description String?     @db.VarChar(256)
+  type        ChannelType
+  position    Int         @default(0)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  server   Server    @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([serverId, position], name: "idx_channels_server_position")
+  @@map("channels")
+}
+
+// ── Roles ──────────────────────────────────────────────
+model Role {
+  id        String   @id @default(uuid()) @db.Uuid
+  serverId  String   @map("server_id") @db.Uuid
+  name      String   @db.VarChar(32)
+  color     String   @default("#99AAB5") @db.VarChar(7)
+  isDefault Boolean  @default(false) @map("is_default")
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  server      Server             @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  members     ServerMemberRole[]
+
+  @@map("roles")
+}
+
+// ── Role Permissions ───────────────────────────────────
+model RolePermission {
+  id         String @id @default(uuid()) @db.Uuid
+  roleId     String @map("role_id") @db.Uuid
+  permission String @db.VarChar(64)
+
+  // Relations
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permission], name: "unique_role_permission")
+  @@map("role_permissions")
+}
+
+// ── Messages ───────────────────────────────────────────
+model Message {
+  id        String    @id @default(uuid()) @db.Uuid
+  channelId String    @map("channel_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  content   String    @db.Text
+  createdAt DateTime  @default(now()) @map("created_at")
+  editedAt  DateTime? @map("edited_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([channelId, createdAt(sort: Desc)], name: "idx_messages_channel_history")
+  @@map("messages")
+}
+
+// ── Sessions ───────────────────────────────────────────
+model Session {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  refreshTokenHash String   @map("refresh_token_hash") @db.VarChar(255)
+  expiresAt        DateTime @map("expires_at")
+  deviceInfo       String?  @map("device_info") @db.VarChar(255)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}

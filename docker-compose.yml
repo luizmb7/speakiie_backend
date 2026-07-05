@@ -1,0 +1,56 @@
+# ────────────────────────────────────────────────────
+# Speakiie — Docker Compose (Desenvolvimento Local)
+# ────────────────────────────────────────────────────
+# Sobe PostgreSQL, Redis e LiveKit para desenvolvimento.
+# Uso: docker compose up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: speakiie-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: speakiie
+      POSTGRES_PASSWORD: speakiie_dev
+      POSTGRES_DB: speakiie
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U speakiie"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: speakiie-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  livekit:
+    image: livekit/livekit-server:v1.8.3
+    container_name: speakiie-livekit
+    restart: unless-stopped
+    command: >
+      --dev
+      --bind 0.0.0.0
+    environment:
+      LIVEKIT_KEYS: "devkey: devsecret-deve-ter-pelo-menos-32-caracteres"
+    ports:
+      - "7880:7880"   # HTTP / WebSocket
+      - "7881:7881"   # TCP (ICE/TURN fallback)
+      - "50000-50060:50000-50060/udp"  # WebRTC UDP (faixa reduzida para dev)
+
+volumes:
+  pgdata:
+  redisdata:
